@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    /* 1. Basic Module Settings */
+    "target": "es2016",                  /* Compatible with most Node versions */
+    "module": "commonjs",                /* Standard for Node.js backends */
+    "moduleResolution": "node",          /* Fixes "Cannot find module 'express'" */
+    
+    /* 2. File Output Settings */
+    "rootDir": "./src",                  /* Where your .ts files are */
+    "outDir": "./dist",                  /* Where .js files go after build */
+    "sourceMap": true,                   /* Helps with debugging */
+
+    /* 3. Strict Checks (Keep these true for good code) */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+
+    /* 4. Interop Settings (Crucial for Express + TypeScript) */
+    "esModuleInterop": true,             /* Allows "import express from 'express'" */
+    "skipLibCheck": true,                /* Skips checking error inside node_modules */
+    "forceConsistentCasingInFileNames": true,
+
+    /* 5. Disable the settings causing your crash */
+    "verbatimModuleSyntax": false,       /* <--- THIS WAS THE MAIN PROBLEM */
+    "isolatedModules": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
+}

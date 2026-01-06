@@ -1,0 +1,196 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------
+// 1. USER & IDENTITY
+// --------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  username     String   @unique
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 1:1 Relations (Profile & Reputation)
+  profile         UserProfile?
+  reputationScore ReputationScore?
+
+  // 1:N Relations (Activity)
+  hostedSessions LFGSession[]     @relation("Host")
+  joinedSessions LFGParticipant[]
+
+  // Feedback given TO others and received FROM others
+  feedbackGiven    Feedback[] @relation("GivenFeedback")
+  feedbackReceived Feedback[] @relation("ReceivedFeedback")
+
+  // --- DAY 4 UPDATE: Chat History ---
+  messages ChatMessage[] // <--- NEW ADDITION
+}
+
+model UserProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName     String?
+  bio             String?
+  region          String // e.g., "NA-East", "EU-West", "Asia"
+  primaryLanguage String @default("English")
+
+  // Preferences
+  playStyle         PlayStyle @default(CASUAL)
+  communicationPref CommType  @default(VOICE)
+
+  avatarUrl String?
+}
+
+// --------------------------------------
+// 2. BEHAVIOR & REPUTATION ENGINE
+// --------------------------------------
+
+model ReputationScore {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Scores are 0 to 100 (Higher is better)
+  positivityScore    Float @default(50.0)
+  reliabilityScore   Float @default(50.0) // e.g. Did they show up?
+  communicationScore Float @default(50.0) // e.g. Was comms clear?
+
+  totalFeedbacks Int      @default(0)
+  lastUpdated    DateTime @default(now())
+}
+
+model Feedback {
+  id String @id @default(uuid())
+
+  // Who gave it, who got it, and for which session
+  fromUserId String
+  toUserId   String
+  sessionId  String
+
+  // Ratings (1 to 5 stars)
+  positivity    Int
+  reliability   Int
+  communication Int
+  comment       String?
+
+  createdAt DateTime @default(now())
+
+  fromUser User       @relation("GivenFeedback", fields: [fromUserId], references: [id])
+  toUser   User       @relation("ReceivedFeedback", fields: [toUserId], references: [id])
+  session  LFGSession @relation(fields: [sessionId], references: [id])
+
+  // Prevent duplicate feedback for the same session pair
+  @@unique([fromUserId, toUserId, sessionId])
+}
+
+// --------------------------------------
+// 3. MATCHMAKING & SESSIONS (LFG)
+// --------------------------------------
+
+model Game {
+  id       String       @id @default(uuid())
+  name     String       @unique // e.g., "Valorant", "Apex Legends"
+  genre    String?
+  sessions LFGSession[]
+}
+
+model LFGSession {
+  id         String @id @default(uuid())
+  hostUserId String
+  gameId     String
+
+  title       String
+  description String?
+  region      String
+  micRequired Boolean @default(false)
+
+  // Capacities
+  maxPlayers     Int
+  currentPlayers Int @default(1)
+
+  status    SessionStatus @default(OPEN)
+  startTime DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  host         User             @relation("Host", fields: [hostUserId], references: [id])
+  game         Game             @relation(fields: [gameId], references: [id])
+  participants LFGParticipant[]
+  feedback     Feedback[]
+
+  // --- DAY 4 UPDATE: Chat History ---
+  messages ChatMessage[] // <--- NEW ADDITION
+}
+
+model LFGParticipant {
+  id        String   @id @default(uuid())
+  sessionId String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  session LFGSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId]) // User can't join the same session twice
+}
+
+// --------------------------------------
+// 4. DAY 4 NEW MODEL: CHAT MESSAGES
+// --------------------------------------
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  // Who sent it?
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Which lobby was it in?
+  sessionId String
+  session   LFGSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// --------------------------------------
+// 5. ENUMS (Constants)
+// --------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum SessionStatus {
+  OPEN // Accepting players
+  FULL // Max players reached
+  CLOSED // Host manually closed it
+  COMPLETED // Game finished (Trigger for feedback)
+}
+
+enum PlayStyle {
+  CASUAL
+  COMPETITIVE
+  HARDCORE
+}
+
+enum CommType {
+  VOICE
+  TEXT
+  PING_ONLY
+}
