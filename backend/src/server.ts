@@ -4,6 +4,7 @@ import cors from 'cors'; // <--- NEW 1: Import it
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './sockets/socketHandler';
+import { setIO } from './sockets/ioInstance';
 
 import authRoutes from './routes/authRoutes';
 import profileRoutes from './routes/profileRoutes';
@@ -27,7 +28,8 @@ const io = new Server(httpServer, {
   }
 });
 
-setupSocketIO(io); 
+setIO(io);
+setupSocketIO(io);
 
 // Register Routes
 app.use('/api/auth', authRoutes);
