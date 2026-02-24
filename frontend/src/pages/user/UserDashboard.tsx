@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import ChatRoom from '../components/ChatRoom';
-import CreateLobby from '../components/CreateLobby';
-import UserProfile from '../components/UserProfile';
-import Compatibility from './user/Compatibility';
-import ReputationMeter from '../components/ReputationMeter';
+import api from '../../services/api';
+import ChatRoom from '../../components/ChatRoom';
+import CreateLobby from '../../components/CreateLobby';
+import UserProfile from '../../components/UserProfile';
+import ReputationMeter from '../../components/ReputationMeter';
+import Settings from './Settings';  // ← NEW IMPORT
 
+// Define types
 interface User {
   id: string;
   username: string;
@@ -25,27 +26,36 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
-  const [activeView, setActiveView] = useState<'home' | 'profile' | 'settings' | 'create' | 'compatibility'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'profile' | 'settings' | 'create'>('home');
   const [selectedLobbyId, setSelectedLobbyId] = useState<string | null>(null);
 
+  // 1. Check Auth & Load User
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUserId = localStorage.getItem('userId');
     
     if (!token || !storedUserId) {
+      console.log("No token found, redirecting to login...");
       navigate('/login');
       return;
     }
     
+    // Fetch User Profile
     api.get(`/profile/${storedUserId}`)
-       .then(res => setUser(res.data.user))
-       .catch((err) => console.error("Failed to load profile:", err));
+       .then(res => {
+         console.log("User loaded:", res.data.user);
+         setUser(res.data.user);
+       })
+       .catch((err) => {
+         console.error("Failed to load profile:", err);
+       });
        
     fetchLobbies();
   }, [navigate]);
 
   const fetchLobbies = async () => {
     try {
+      console.log("Fetching lobbies...");
       const res = await api.get('/lfg/sessions');
       setLobbies(res.data);
     } catch (err) {
@@ -54,11 +64,12 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
+    console.log("Logging out...");
     localStorage.clear();
     navigate('/login');
   };
 
-  const changeView = (view: 'home' | 'profile' | 'settings' | 'create' | 'compatibility') => {
+  const changeView = (view: 'home' | 'profile' | 'settings' | 'create') => {
     setActiveView(view);
     setSelectedLobbyId(null);
     if (view === 'home') fetchLobbies();
@@ -67,6 +78,7 @@ const Dashboard = () => {
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', background: 'white', color: 'black', overflow: 'hidden' }}>
       
+      {/* SIDEBAR */}
       <div style={{ 
         width: '250px', 
         minWidth: '250px',
@@ -89,7 +101,6 @@ const Dashboard = () => {
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
           <button onClick={() => changeView('home')} style={navBtnStyle}>🏠 Home</button>
           <button onClick={() => changeView('profile')} style={navBtnStyle}>👤 My Profile</button>
-          <button onClick={() => changeView('compatibility')} style={navBtnStyle}>🤝 Compatibility</button>
           <button onClick={() => changeView('settings')} style={navBtnStyle}>⚙️ Settings</button>
         </nav>
 
@@ -98,6 +109,7 @@ const Dashboard = () => {
         </button>
       </div>
 
+      {/* MAIN CONTENT */}
       <div style={{ flex: 1, padding: '40px', background: '#f1f5f9', overflowY: 'auto' }}>
         
         {selectedLobbyId ? (
@@ -110,8 +122,7 @@ const Dashboard = () => {
           <>
             {activeView === 'create' && <CreateLobby onSuccess={() => changeView('home')} onCancel={() => changeView('home')} />}
             {activeView === 'profile' && <UserProfile />}
-            {activeView === 'compatibility' && <Compatibility />}
-            {activeView === 'settings' && <h2>⚙️ Settings Page</h2>}
+            {activeView === 'settings' && <Settings />}  {/* ← UPDATED LINE */}
 
             {activeView === 'home' && (
               <>

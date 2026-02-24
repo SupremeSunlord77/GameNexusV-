@@ -1,16 +1,20 @@
-import express from 'express';
-import { upsertProfile, getMyProfile, getProfile } from '../controllers/profileController';
-import { authenticateJWT } from '../middlewares/authMiddleware';
+import express from "express";
+import {
+  upsertProfile,
+  getMyProfile,
+  getProfileByUserId
+} from "../controllers/profileController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { authenticated } from "../middlewares/roleMiddleware";
 
 const router = express.Router();
 
-// Update self
-router.put('/', authenticateJWT, upsertProfile);
+// All profile routes require authentication
+router.use(authMiddleware);
+router.use(authenticated);
 
-// Get self
-router.get('/', authenticateJWT, getMyProfile);
-
-// Get ANY user by ID (This fixes your 404 error!)
-router.get('/:userId', authenticateJWT, getProfile);
+router.put("/me", upsertProfile);
+router.get("/me", getMyProfile);
+router.get("/:userId", getProfileByUserId);
 
 export default router;

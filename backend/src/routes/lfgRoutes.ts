@@ -1,12 +1,16 @@
 import express from 'express';
 import { getGames, createSession, getSessions, joinSession } from '../controllers/lfgController';
-import { authenticateJWT } from '../middlewares/authMiddleware';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { authenticated, checkBanStatus } from '../middlewares/roleMiddleware';
 
 const router = express.Router();
 
-router.get('/games', getGames); // Get list of games (Public)
-router.get('/sessions', getSessions); // Get active lobbies (Public)
-router.post('/sessions', authenticateJWT, createSession); // Create lobby (Auth required)
-router.post('/join', authenticateJWT, joinSession); // Join lobby (Auth required)
+// Public routes (no auth required)
+router.get('/games', getGames);
+router.get('/sessions', getSessions);
+
+// Protected routes (auth required + not banned)
+router.post('/sessions', authMiddleware, authenticated, checkBanStatus, createSession);
+router.post('/join', authMiddleware, authenticated, checkBanStatus, joinSession);
 
 export default router;

@@ -1,64 +1,91 @@
 import { Server, Socket } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import { analyzeBehavior } from '../services/behaviorAI';
 
 const prisma = new PrismaClient();
 
-export const setupSocketIO = (io: Server) => {
-  io.on("connection", (socket: Socket) => {
-    console.log(`⚡ User connected: ${socket.id}`);
+export const setupSocketHandlers = (io: Server) => {
+  io.on('connection', (socket: Socket) => {
+    console.log('✅ User connected:', socket.id);
 
-    // 1. Join Lobby & Load History
-    socket.on("join_lobby", async (lobbyId: string) => {
-      socket.join(lobbyId);
-      console.log(`User ${socket.id} joined lobby: ${lobbyId}`);
-
+    // Join a lobby
+    socket.on('join_lobby', async (lobbyId: string) => {
       try {
-        // Fetch last 50 messages from the Database
+        socket.join(lobbyId);
+        console.log(`📥 Socket ${socket.id} joined lobby: ${lobbyId}`);
+
+        // Load chat history
         const history = await prisma.chatMessage.findMany({
           where: { sessionId: lobbyId },
-          include: { user: { select: { username: true } } }, // Get the username too
-          orderBy: { createdAt: 'asc' }, // Oldest first
+          include: { user: { select: { username: true } } },
+          orderBy: { createdAt: 'asc' },
           take: 50
         });
 
-        // Send history ONLY to the user who just joined
-        socket.emit("load_history", history);
-        
-      } catch (error) {
-        console.error("Error loading history:", error);
+        socket.emit('load_history', history);
+      } catch (err) {
+        console.error('Error joining lobby:', err);
       }
     });
 
-    // 2. Handle Sending Messages
-    socket.on("send_message", async (data) => {
-      // data = { lobbyId, userId, message }
-      console.log(`Msg in ${data.lobbyId}: ${data.message}`);
-
+    // Send message with AI analysis
+    socket.on('send_message', async (data: { lobbyId: string; userId: string; message: string }) => {
       try {
-        // SAVE to Database
-        const savedMsg = await prisma.chatMessage.create({
+        const { lobbyId, userId, message } = data;
+        console.log('💬 Message received:', message);
+
+        // 🤖 AI ANALYSIS
+        const analysis = await analyzeBehavior(userId, message);
+        
+        console.log('📊 Analysis complete:', {
+          newRep: analysis.newRep,
+          isToxic: analysis.isToxic,
+          reason: analysis.reason,
+          scoreChange: analysis.scoreChange
+        });
+
+        // Save message to database
+        const chatMessage = await prisma.chatMessage.create({
           data: {
-            content: data.message,
-            sessionId: data.lobbyId,
-            userId: data.userId // We need the User ID to link it!
+            content: message,
+            userId,
+            sessionId: lobbyId,
+            isToxic: analysis.isToxic
           },
-          include: { user: { select: { username: true } } }
+          include: {
+            user: { select: { username: true } }
+          }
         });
 
-        // Broadcast to everyone in the room (including sender)
-        io.to(data.lobbyId).emit("receive_message", {
-          username: savedMsg.user.username,
-          message: savedMsg.content,
-          createdAt: savedMsg.createdAt
+        // Broadcast to all users in lobby
+        io.to(lobbyId).emit('receive_message', {
+          username: chatMessage.user.username,
+          message: chatMessage.content,
+          isToxic: analysis.isToxic
         });
 
-      } catch (error) {
-        console.error("Error saving message:", error);
+        // 🔥 CRITICAL FIX: Ensure ALL properties exist using nullish coalescing
+        const reputationUpdate = {
+          newScore: analysis.newRep ?? 50,
+          change: analysis.scoreChange ?? 0,
+          reason: analysis.reason ?? 'Message analyzed'
+        };
+
+        console.log('📤 Sending reputation update:', reputationUpdate);
+
+        // Send reputation update ONLY to sender (private event)
+        socket.emit('reputation_update', reputationUpdate);
+
+        console.log(`✅ Message saved & broadcast. User reputation: ${analysis.newRep}`);
+      } catch (err) {
+        console.error('❌ Error sending message:', err);
+        socket.emit('error', { message: 'Failed to send message' });
       }
     });
 
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
+    // Disconnect
+    socket.on('disconnect', () => {
+      console.log('❌ User disconnected:', socket.id);
     });
   });
 };

@@ -1,65 +1,106 @@
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client'; // <--- Added missing import
-import { profileService } from '../services/profileService';
-import { AuthRequest } from '../middlewares/authMiddleware';
+import { Response, Request } from "express";
+import { profileService } from "../services/profileService";
+import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient(); // <--- Initialize Prisma
+const prisma = new PrismaClient();
 
-export const upsertProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+/**
+ * Create or Update logged-in user's profile
+ * PUT /api/profile/me
+ */
+export const upsertProfile = async (
+  req: Request, // 👈 Updated to Request
+  res: Response
+): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-    }
-
-    const profile = await profileService.upsertProfile({ ...req.body, userId });
-    res.status(200).json(profile);
-  } catch (error: any) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to update profile' });
-  }
-};
-
-export const getMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-    }
+    // Note: Check if your JWT payload uses 'id' or 'userId'. 
+    // If you used 'userId' in your token generation, change this to req.user?.userId
+    const userId = req.user?.id || req.user?.userId; 
     
-    const profile = await profileService.getProfile(userId);
-    res.json(profile);
-  } catch (error: any) {
-    res.status(404).json({ message: error.message });
-  }
-};
-
-// 👇 This is the new function (Only pasted once!)
-export const getProfile = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { userId } = req.params; // Get ID from URL
-    
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        id: true, 
-        username: true, 
-        email: true, 
-        createdAt: true 
-      }
-    });
-
-    if (!user) {
-      res.status(404).json({ message: 'User not found' });
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
-    // Wrap it in { user: ... } to match what the Frontend expects
-    res.json({ user });
+    const profile = await profileService.upsertProfile({
+      ...req.body,
+      userId
+    });
+
+    res.status(200).json(profile);
   } catch (error) {
-    console.error("Error fetching profile:", error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Profile upsert failed:", error);
+    res.status(500).json({ message: "Failed to update profile" });
+  }
+};
+
+/**
+ * Get logged-in user's profile (USER + PROFILE)
+ * GET /api/profile/me
+ */
+export const getMyProfile = async (
+  req: Request, // 👈 Updated to Request
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id || req.user?.userId;
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        username: true,
+        email: true,
+        createdAt: true
+      }
+    });
+
+    const profile = await profileService.getProfile(userId);
+
+    res.json({
+      user,
+      profile
+    });
+  } catch (error) {
+    console.error("Failed to fetch my profile:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * Get public profile by userId
+ * GET /api/profile/:userId
+ */
+export const getProfileByUserId = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        username: true,
+        email: true,
+        createdAt: true
+      }
+    });
+
+    const profile = await profileService.getProfile(userId);
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    res.json({ user, profile });
+  } catch (error) {
+    console.error("Failed to fetch public profile:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

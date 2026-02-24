@@ -17,25 +17,45 @@ export const lfgService = {
   getAllGames: async () => {
     return await prisma.game.findMany();
   },
-
   // 2. Create a new Session (Host a Lobby)
   createSession: async (data: CreateSessionInput) => {
-    // NOTICE: 'lFGSession' instead of 'lfgSession'
-    return await prisma.lFGSession.create({ 
+  const {
+    hostUserId,
+    gameId,
+    title,
+    description,
+    region,
+    micRequired,
+    maxPlayers
+  } = data;
+
+    return await prisma.lFGSession.create({
       data: {
-        hostUserId: data.hostUserId,
-        gameId: data.gameId,
-        title: data.title,
-        description: data.description,
-        region: data.region,
-        micRequired: data.micRequired,
-        maxPlayers: data.maxPlayers,
-        currentPlayers: 1, // The host counts as 1
+        title,
+        description,
+        region,
+        micRequired,
+        maxPlayers,
+        currentPlayers: 1,
+
+        // REQUIRED relation: host
+        host: {
+          connect: { id: hostUserId }
+        },
+
+        // REQUIRED relation: game
+        game: {
+          connect: { id: gameId }
+        },
+
+        // Auto-join host as participant
         participants: {
-            create: { userId: data.hostUserId } // Add host to participants automatically
+          create: {
+            userId: hostUserId
+            }
+          }
         }
-      }
-    });
+      });
   },
 
   // 3. Get All Open Sessions (The Feed)

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "ChatMessage" ADD COLUMN     "isToxic" BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "isBanned" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "reputation" INTEGER NOT NULL DEFAULT 50,
+ADD COLUMN     "toxicityFlags" INTEGER NOT NULL DEFAULT 0;
