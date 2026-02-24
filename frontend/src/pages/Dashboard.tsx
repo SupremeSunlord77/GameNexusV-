@@ -19,6 +19,7 @@ interface Lobby {
   game: { name: string };
   currentPlayers: number;
   maxPlayers: number;
+  hostUserId: string;
 }
 
 const Dashboard = () => {
@@ -27,6 +28,7 @@ const Dashboard = () => {
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [activeView, setActiveView] = useState<'home' | 'profile' | 'settings' | 'create' | 'compatibility'>('home');
   const [selectedLobbyId, setSelectedLobbyId] = useState<string | null>(null);
+  const [selectedLobbyHostId, setSelectedLobbyHostId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -61,6 +63,7 @@ const Dashboard = () => {
   const changeView = (view: 'home' | 'profile' | 'settings' | 'create' | 'compatibility') => {
     setActiveView(view);
     setSelectedLobbyId(null);
+    setSelectedLobbyHostId(null);
     if (view === 'home') fetchLobbies();
   };
 
@@ -101,10 +104,11 @@ const Dashboard = () => {
       <div style={{ flex: 1, padding: '40px', background: '#f1f5f9', overflowY: 'auto' }}>
         
         {selectedLobbyId ? (
-          <ChatRoom 
-            lobbyId={selectedLobbyId} 
+          <ChatRoom
+            lobbyId={selectedLobbyId}
+            hostUserId={selectedLobbyHostId || ""}
             username={user?.username || "Guest"}
-            onLeave={() => { setSelectedLobbyId(null); fetchLobbies(); }} 
+            onLeave={() => { setSelectedLobbyId(null); setSelectedLobbyHostId(null); fetchLobbies(); }}
           />
         ) : (
           <>
@@ -131,8 +135,8 @@ const Dashboard = () => {
                     <div key={lobby.id} style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                       <h3>{lobby.title}</h3>
                       <p>Game: {lobby.game?.name}</p>
-                      <button 
-                        onClick={() => setSelectedLobbyId(lobby.id)}
+                      <button
+                        onClick={() => { setSelectedLobbyId(lobby.id); setSelectedLobbyHostId(lobby.hostUserId); }}
                         style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '5px', marginTop: '10px', cursor: 'pointer' }}
                       >
                         Join Lobby

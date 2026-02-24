@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+<<<<<<< HEAD
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -6,6 +7,11 @@ const prisma = new PrismaClient();
 // ==========================================
 // EXISTING LFG FUNCTIONS
 // ==========================================
+=======
+import { lfgService } from '../services/lfgService';
+import { AuthRequest } from '../middlewares/authMiddleware';
+import { getIO } from '../sockets/ioInstance';
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
 
 export const getGames = async (req: Request, res: Response) => {
   try {
@@ -120,6 +126,7 @@ export const joinSession = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id || req.user?.userId;
     const { sessionId } = req.body;
+<<<<<<< HEAD
     
     if (!userId) { 
       res.sendStatus(401); 
@@ -167,6 +174,10 @@ export const joinSession = async (req: Request, res: Response) => {
       where: { id: sessionId },
       data: { currentPlayers: { increment: 1 } }
     });
+=======
+
+    if (!userId) { res.sendStatus(401); return; }
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
 
     res.json({ message: "Successfully joined session!" });
   } catch (error: any) {
@@ -175,6 +186,7 @@ export const joinSession = async (req: Request, res: Response) => {
   }
 };
 
+<<<<<<< HEAD
 // ==========================================
 // HELPER FUNCTION - Compatibility Calculator
 // ==========================================
@@ -200,3 +212,39 @@ function calculateCompatibilityScore(
   // Weighted combination: 70% behavior, 30% trust
   return behaviorScore * 0.7 + trustScore * 0.3;
 }
+=======
+export const leaveSession = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { sessionId } = req.body;
+
+    if (!userId) { res.sendStatus(401); return; }
+
+    const result = await lfgService.leaveSession(sessionId, userId);
+
+    if (result.closed) {
+      getIO().to(sessionId).emit("session_closed", { reason: "host_left" });
+    }
+
+    res.json({ message: "Left session", closed: result.closed });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const closeSession = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { sessionId } = req.params;
+
+    if (!userId) { res.sendStatus(401); return; }
+
+    await lfgService.closeSession(sessionId, userId);
+    getIO().to(sessionId).emit("session_closed", { reason: "host_closed" });
+
+    res.json({ message: "Session closed" });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d

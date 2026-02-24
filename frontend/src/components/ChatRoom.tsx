@@ -1,8 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import api from '../services/api';
 
 interface ChatRoomProps {
   lobbyId: string;
+<<<<<<< HEAD
+=======
+  hostUserId: string;
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
   username: string;
   onLeave: () => void;
 }
@@ -11,13 +16,17 @@ interface Message {
   username: string;
   message: string;
   content?: string;
+<<<<<<< HEAD
   isToxic?: boolean;
   createdAt?: Date;
+=======
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
 }
 
-const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
+const ChatRoom = ({ lobbyId, hostUserId, username, onLeave }: ChatRoomProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [closedBanner, setClosedBanner] = useState('');
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -32,7 +41,8 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
     type: 'positive' | 'negative' | 'neutral';
   }>({ show: false, message: '', type: 'neutral' });
 
-  const userId = localStorage.getItem('userId');
+  const userId = localStorage.getItem('userId') || '';
+  const isHost = userId === hostUserId;
 
   useEffect(() => {
     socketRef.current = io("http://localhost:5000");
@@ -51,6 +61,7 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
       setMessages((prev) => [...prev, data]);
     });
 
+<<<<<<< HEAD
     // 🔥 FIXED: Added defensive checks
     socketRef.current.on("reputation_update", (data: any) => {
       console.log('📊 Reputation update received:', data);
@@ -97,6 +108,14 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
     });
 
     // Cleanup
+=======
+    // Session closed by host or auto-triggered
+    socketRef.current.on("session_closed", () => {
+      setClosedBanner("This lobby has been closed.");
+      setTimeout(() => onLeave(), 2500);
+    });
+
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
     return () => {
       if (socketRef.current) {
         socketRef.current.off("load_history");
@@ -132,6 +151,7 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
     setInput('');
   };
 
+<<<<<<< HEAD
   const getReputationColor = (score: number) => {
     if (score >= 70) return '#22c55e';
     if (score >= 30) return '#f59e0b';
@@ -171,10 +191,40 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
           {toast.type === 'negative' && '⚠️ '}
           {toast.type === 'neutral' && '💬 '}
           {toast.message}
+=======
+  const handleLeave = async () => {
+    try {
+      await api.post('/lfg/leave', { sessionId: lobbyId });
+    } catch (err) {
+      console.error("Leave failed:", err);
+    }
+    socketRef.current?.disconnect();
+    onLeave();
+  };
+
+  const handleClose = async () => {
+    try {
+      await api.patch(`/lfg/sessions/${lobbyId}/close`);
+      // session_closed socket event will trigger the redirect for all users
+    } catch (err) {
+      console.error("Close failed:", err);
+      onLeave(); // fallback
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'white', borderRadius: '10px', overflow: 'hidden' }}>
+
+      {/* CLOSED BANNER */}
+      {closedBanner && (
+        <div style={{ padding: '10px', background: '#ef4444', color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
+          {closedBanner}
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
         </div>
       )}
 
       {/* HEADER */}
+<<<<<<< HEAD
       <div style={{ 
         padding: '15px', 
         background: '#34495e', 
@@ -224,12 +274,34 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
         }}>
           Leave
         </button>
+=======
+      <div style={{ padding: '15px', background: '#34495e', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0 }}>Lobby: {lobbyId}</h3>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {isHost ? (
+            <button
+              onClick={handleClose}
+              style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 12px', cursor: 'pointer' }}
+            >
+              Close Lobby
+            </button>
+          ) : (
+            <button
+              onClick={handleLeave}
+              style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 12px', cursor: 'pointer' }}
+            >
+              Leave
+            </button>
+          )}
+        </div>
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
       </div>
 
       {/* MESSAGES */}
       <div style={{ flex: 1, padding: '20px', overflowY: 'auto', background: '#ecf0f1', display: 'flex', flexDirection: 'column' }}>
         {messages.map((msg, idx) => {
           const isMe = msg.username === "You" || msg.username === username;
+<<<<<<< HEAD
           const isToxic = msg.isToxic || false;
           
           return (
@@ -273,6 +345,21 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
                   ? '0 2px 8px rgba(239, 68, 68, 0.3)'
                   : '0 1px 2px rgba(0,0,0,0.1)',
                 transition: 'all 0.2s ease'
+=======
+
+          return (
+            <div key={idx} style={{
+              marginBottom: '10px',
+              alignSelf: isMe ? 'flex-end' : 'flex-start',
+              textAlign: isMe ? 'right' : 'left'
+            }}>
+              <div style={{
+                background: isMe ? '#3498db' : '#bdc3c7',
+                color: isMe ? 'white' : 'black',
+                padding: '8px 12px',
+                borderRadius: '15px',
+                display: 'inline-block'
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
               }}>
                 {isToxic && <span style={{ fontSize: '16px', marginRight: '6px' }}>⚠️</span>}
                 <strong>{msg.username}: </strong>
@@ -285,6 +372,7 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
       </div>
 
       {/* INPUT */}
+<<<<<<< HEAD
       <div style={{ padding: '15px', display: 'flex', gap: '10px' }}>
         <input 
           value={input} 
@@ -297,6 +385,15 @@ const ChatRoom = ({ lobbyId, username, onLeave }: ChatRoomProps) => {
             borderRadius: '6px',
             border: '1px solid #ccc'
           }}
+=======
+      <div style={{ padding: '15px', display: 'flex' }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+          placeholder="Type a message..."
+          style={{ flex: 1, padding: '10px' }}
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
         />
         <button 
           onClick={sendMessage} 

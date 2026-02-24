@@ -4,6 +4,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './sockets/socketHandler';
+import { setIO } from './sockets/ioInstance';
 
 // Import Routes
 import authRoutes from './routes/authRoutes';
@@ -32,6 +33,7 @@ const io = new Server(httpServer, {
   }
 });
 
+<<<<<<< HEAD
 // Setup Socket Logic
 // (Make sure socketHandler.ts exists, otherwise comment this out for now)
 try {
@@ -39,6 +41,10 @@ try {
 } catch (e) {
     console.log("Socket setup skipped (file might be missing)");
 }
+=======
+setIO(io);
+setupSocketIO(io);
+>>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
 
 // --- 🔌 REGISTER ROUTES ---
 app.use('/api/auth', authRoutes);
