@@ -34,7 +34,7 @@ model User {
   eigenTrustScore   Float     @default(0.5) // Trust graph score (0-1)
   endorsements      Json?     // Endorsement counts: {teamPlayer: 5, positive: 12, etc.}
 
-  // --- NEW: RELATION FOR ADMIN ACTIONS ---
+  // --- AUDIT LOG RELATION ---
   auditLogs      AuditLog[] @relation("AdminActions")
 
   // 1:1 Relations
@@ -44,32 +44,41 @@ model User {
   // 1:N Relations
   hostedSessions    LFGSession[]     @relation("Host")
   joinedSessions    LFGParticipant[]
-   
+
   // Feedback
   feedbackGiven     Feedback[]       @relation("GivenFeedback")
   feedbackReceived  Feedback[]       @relation("ReceivedFeedback")
 
   // Chat
   messages          ChatMessage[]
-  
-  // 🆕 TRUST GRAPH RELATIONS - NEW
+
+  // 🆕 TRUST GRAPH RELATIONS
   givenTrust        TrustEdge[]   @relation("GivenTrust")
   receivedTrust     TrustEdge[]   @relation("ReceivedTrust")
+
+  // 🆕 MODERATION RELATIONS
+  notifications         Notification[]
+  deletedSessions       LFGDeletionLog[]
+  reportedTickets       SupportTicket[]       @relation("Reporter")
+  reportedOnTickets     SupportTicket[]       @relation("ReportedUser")
+  assignedTickets       SupportTicket[]       @relation("AssignedStaff")
+  disciplinaryActions   DisciplinaryAction[]  @relation("ActionTarget")
+  issuedActions         DisciplinaryAction[]  @relation("ActionIssuer")
 }
 
 model UserProfile {
   id                String   @id @default(uuid())
   userId            String   @unique
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   displayName       String?
   bio               String?
   region            String
   primaryLanguage   String   @default("English")
-  
+
   playStyle         PlayStyle @default(CASUAL)
   communicationPref CommType  @default(VOICE)
-  
+
   avatarUrl         String?
 }
 
@@ -85,14 +94,14 @@ model ReputationScore {
   positivityScore    Float    @default(50.0)
   reliabilityScore   Float    @default(50.0)
   communicationScore Float    @default(50.0)
-  
+
   totalFeedbacks     Int      @default(0)
   lastUpdated        DateTime @default(now())
 }
 
 model Feedback {
   id           String   @id @default(uuid())
-  
+
   fromUserId   String
   toUserId     String
   sessionId    String
@@ -101,7 +110,7 @@ model Feedback {
   reliability  Int
   communication Int
   comment      String?
-  
+
   createdAt    DateTime @default(now())
 
   fromUser User       @relation("GivenFeedback", fields: [fromUserId], references: [id])
@@ -126,22 +135,22 @@ model LFGSession {
   id             String        @id @default(uuid())
   hostUserId     String
   gameId         String
-  
+
   title          String
   description    String?
   region         String
   micRequired    Boolean       @default(false)
-  
+
   maxPlayers     Int
   currentPlayers Int           @default(1)
-  
+
   status         SessionStatus @default(OPEN)
   startTime      DateTime      @default(now())
   createdAt      DateTime      @default(now())
 
-  // 🆕 BEHAVIORAL REQUIREMENTS - NEW (Optional filters)
-  minCompatibility Float?   @default(0.4) // Minimum compatibility score to join (0-1)
-  minEigenTrust    Float?   @default(0)   // Minimum trust score to join (0-1)
+  // 🆕 BEHAVIORAL REQUIREMENTS
+  minCompatibility Float?   @default(0.4)
+  minEigenTrust    Float?   @default(0)
 
   host           User             @relation("Host", fields: [hostUserId], references: [id])
   game           Game             @relation(fields: [gameId], references: [id])
@@ -171,12 +180,12 @@ model ChatMessage {
   content   String
   createdAt DateTime @default(now())
 
-  // --- NEW: AI FLAGS ---
+  // --- AI FLAGS ---
   isToxic   Boolean  @default(false)
 
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  
+
   sessionId String
   session   LFGSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
@@ -217,34 +226,118 @@ enum CommType {
 model AuditLog {
   id          String   @id @default(uuid())
   action      String   // e.g., "BAN_USER", "WARN_USER", "MANUAL_REP"
-  details     String?  // e.g., "Reason: Toxic behavior in Lobby #123"
-  
-  adminId     String   // Who did the action?
+  details     String?
+
+  adminId     String
   admin       User     @relation("AdminActions", fields: [adminId], references: [id])
-  
-  targetId    String?  // Who was it done to? (Stored as string so logs survive user deletion)
+
+  targetId    String?
   createdAt   DateTime @default(now())
 }
 
 // --------------------------------------
 // 7. TRUST GRAPH (EigenTrust System)
-// 🆕 NEW MODEL
 // --------------------------------------
 
 model TrustEdge {
   id            String   @id @default(uuid())
-  sourceUserId  String   // Who is giving trust
-  targetUserId  String   // Who is receiving trust
-  weight        Float    @default(0.8)  // Trust strength (0-1)
-  source        String   @default("ENDORSEMENT") // ENDORSEMENT, SESSION_RATING, MANUAL
+  sourceUserId  String
+  targetUserId  String
+  weight        Float    @default(0.8)
+  source        String   @default("ENDORSEMENT")
   createdAt     DateTime @default(now())
-  
-  // Relations
+
   sourceUser    User     @relation("GivenTrust", fields: [sourceUserId], references: [id], onDelete: Cascade)
   targetUser    User     @relation("ReceivedTrust", fields: [targetUserId], references: [id], onDelete: Cascade)
-  
-  // Constraints
+
   @@unique([sourceUserId, targetUserId])
   @@index([sourceUserId])
   @@index([targetUserId])
+}
+
+// --------------------------------------
+// 8. 🆕 NOTIFICATIONS
+// --------------------------------------
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String   // e.g., "session_deleted", "warning", "system"
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// --------------------------------------
+// 9. 🆕 LFG DELETION LOG
+// --------------------------------------
+
+model LFGDeletionLog {
+  id               String   @id @default(uuid())
+  sessionId        String?  // nullable — session is gone
+  sessionTitle     String
+  deletedBy        String
+  deletedByUser    User     @relation(fields: [deletedBy], references: [id])
+  deletedByRole    String
+  membersNotified  Int      @default(0)
+  deletedAt        DateTime @default(now())
+}
+
+// --------------------------------------
+// 10. 🆕 SUPPORT TICKETS
+// --------------------------------------
+
+model SupportTicket {
+  id              String   @id @default(uuid())
+  reporterId      String
+  reporter        User     @relation("Reporter", fields: [reporterId], references: [id])
+
+  reportedUserId  String?
+  reportedUser    User?    @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  sessionId       String?
+
+  ticketType      String   // "ghosting", "toxicity", "other"
+  description     String
+  status          String   @default("open")  // open, assigned, resolved, dismissed
+
+  assignedTo      String?
+  assignedStaff   User?    @relation("AssignedStaff", fields: [assignedTo], references: [id])
+
+  resolutionNote  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// --------------------------------------
+// 11. 🆕 DISCIPLINARY ACTIONS
+// --------------------------------------
+
+model DisciplinaryAction {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("ActionTarget", fields: [userId], references: [id], onDelete: Cascade)
+
+  actionType  String   // "mute", "shadow_ban", "warning"
+  issuedBy    String
+  issuer      User     @relation("ActionIssuer", fields: [issuedBy], references: [id])
+
+  reason      String?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// --------------------------------------
+// 12. 🆕 SYSTEM CONFIG (Fracture Algorithm)
+// --------------------------------------
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  configKey   String   @unique
+  configValue Json
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
 }
