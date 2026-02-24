@@ -67,6 +67,9 @@ export const lfgService = {
     });
     if (existing) throw new Error("You are already in this session");
 
+    const newCount = session.currentPlayers + 1;
+    const newStatus = newCount >= session.maxPlayers ? 'FULL' : 'OPEN';
+
     // Add user and update count (Transaction ensures safety)
     return await prisma.$transaction([
       prisma.lFGParticipant.create({
@@ -74,8 +77,49 @@ export const lfgService = {
       }),
       prisma.lFGSession.update({
         where: { id: sessionId },
-        data: { currentPlayers: { increment: 1 } }
+        data: { currentPlayers: { increment: 1 }, status: newStatus }
       })
     ]);
+  },
+
+  // 5. Leave a Session (non-host player, or host which auto-closes)
+  leaveSession: async (sessionId: string, userId: string) => {
+    const session = await prisma.lFGSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new Error("Session not found");
+
+    const participant = await prisma.lFGParticipant.findUnique({
+      where: { sessionId_userId: { sessionId, userId } }
+    });
+    if (!participant) throw new Error("You are not in this session");
+
+    const isHost = session.hostUserId === userId;
+    const newCount = session.currentPlayers - 1;
+    // Close if host leaves or the last participant leaves
+    const shouldClose = isHost || newCount <= 0;
+
+    await prisma.$transaction([
+      prisma.lFGParticipant.delete({ where: { sessionId_userId: { sessionId, userId } } }),
+      prisma.lFGSession.update({
+        where: { id: sessionId },
+        data: {
+          currentPlayers: { decrement: 1 },
+          ...(shouldClose ? { status: 'CLOSED' } : {})
+        }
+      })
+    ]);
+
+    return { closed: shouldClose };
+  },
+
+  // 6. Close a Session (host only — explicit close button)
+  closeSession: async (sessionId: string, userId: string) => {
+    const session = await prisma.lFGSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new Error("Session not found");
+    if (session.hostUserId !== userId) throw new Error("Only the host can close this session");
+
+    return await prisma.lFGSession.update({
+      where: { id: sessionId },
+      data: { status: 'CLOSED' }
+    });
   }
 };
