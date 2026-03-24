@@ -20,6 +20,7 @@ interface Lobby {
   game: { name: string };
   currentPlayers: number;
   maxPlayers: number;
+  compatibilityScore?: number;
 }
 
 const Dashboard = () => {
@@ -56,7 +57,7 @@ const Dashboard = () => {
   const fetchLobbies = async () => {
     try {
       console.log("Fetching lobbies...");
-      const res = await api.get('/lfg/sessions');
+      const res = await api.get('/lfg/sessions?compatibleWithMe=true');
       setLobbies(res.data);
     } catch (err) {
       console.error("Error fetching lobbies:", err);
@@ -101,6 +102,7 @@ const Dashboard = () => {
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
           <button onClick={() => changeView('home')} style={navBtnStyle}>🏠 Home</button>
           <button onClick={() => changeView('profile')} style={navBtnStyle}>👤 My Profile</button>
+          <button onClick={() => navigate('/compatibility')} style={navBtnStyle}>🤝 Find Teammates</button>
           <button onClick={() => changeView('settings')} style={navBtnStyle}>⚙️ Settings</button>
         </nav>
 
@@ -142,7 +144,24 @@ const Dashboard = () => {
                     <div key={lobby.id} style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                       <h3>{lobby.title}</h3>
                       <p>Game: {lobby.game?.name}</p>
-                      <button 
+                      {(() => {
+                        const s = lobby.compatibilityScore;
+                        const [bg, label] =
+                          s === undefined
+                            ? ['#9ca3af', 'No profile yet']
+                            : s >= 0.65
+                            ? ['#22c55e', `${(s * 100).toFixed(0)}% Match`]
+                            : s >= 0.50
+                            ? ['#eab308', `${(s * 100).toFixed(0)}% Match`]
+                            : ['#ef4444', `${(s * 100).toFixed(0)}% Match`];
+                        return (
+                          <span style={{
+                            display: 'inline-block', padding: '3px 10px', borderRadius: '12px',
+                            fontSize: '12px', fontWeight: 600, color: 'white', background: bg, marginTop: '6px'
+                          }}>{label}</span>
+                        );
+                      })()}
+                      <button
                         onClick={() => setSelectedLobbyId(lobby.id)}
                         style={{ width: '100%', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '5px', marginTop: '10px', cursor: 'pointer' }}
                       >

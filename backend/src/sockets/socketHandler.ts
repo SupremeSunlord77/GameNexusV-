@@ -83,6 +83,12 @@ export const setupSocketHandlers = (io: Server) => {
       }
     });
 
+    // Join admin/moderator activity room
+    socket.on('join_admin', () => {
+      socket.join('admin-room');
+      console.log(`🛡️ Admin socket ${socket.id} joined admin-room`);
+    });
+
     // Disconnect
     socket.on('disconnect', () => {
       console.log('❌ User disconnected:', socket.id);

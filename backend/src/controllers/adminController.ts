@@ -1,14 +1,25 @@
 import { Request, Response } from 'express';
 import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { getIO } from '../sockets/ioInstance';
 
 const prisma = new PrismaClient();
 
-// --- HELPER: Log an Action to DB ---
+// --- HELPER: Log an Action to DB and broadcast to admin room ---
 async function logAction(adminId: string, action: string, details: string, targetId?: string) {
-  await prisma.auditLog.create({
-    data: { adminId, action, details, targetId }
+  const log = await prisma.auditLog.create({
+    data: { adminId, action, details, targetId },
+    include: { admin: { select: { username: true } } }
   });
+  try {
+    getIO().to('admin-room').emit('admin_activity', {
+      id: log.id,
+      action: log.action,
+      details: log.details,
+      adminUsername: log.admin.username,
+      createdAt: log.createdAt
+    });
+  } catch (_) { /* IO not ready */ }
 }
 
 // ==========================================
@@ -18,18 +29,20 @@ async function logAction(adminId: string, action: string, details: string, targe
 // 👇 THIS WAS MISSING! ADD IT NOW 👇
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
-    const totalUsers = await prisma.user.count();
-    const bannedUsers = await prisma.user.count({ where: { isBanned: true } });
-    
-    // Sum of all toxicity flags (safely handle nulls)
-    const toxicStats = await prisma.user.aggregate({
-      _sum: { toxicityFlags: true }
-    });
+    const [totalUsers, bannedUsers, activeSessions, toxicStats, toxicMessages] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isBanned: true } }),
+      prisma.lFGSession.count({ where: { status: 'OPEN' } }),
+      prisma.user.aggregate({ _sum: { toxicityFlags: true } }),
+      prisma.chatMessage.count({ where: { isToxic: true } })
+    ]);
 
     res.json({
       totalUsers,
       bannedUsers,
-      toxicCount: toxicStats._sum.toxicityFlags || 0
+      activeSessions,
+      toxicCount: toxicStats._sum.toxicityFlags || 0,
+      toxicMessages
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch stats" });
