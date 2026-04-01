@@ -4,10 +4,7 @@ import api from '../services/api';
 
 interface ChatRoomProps {
   lobbyId: string;
-<<<<<<< HEAD
-=======
   hostUserId: string;
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
   username: string;
   onLeave: () => void;
 }
@@ -16,11 +13,8 @@ interface Message {
   username: string;
   message: string;
   content?: string;
-<<<<<<< HEAD
   isToxic?: boolean;
   createdAt?: Date;
-=======
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
 }
 
 const ChatRoom = ({ lobbyId, hostUserId, username, onLeave }: ChatRoomProps) => {
@@ -29,17 +23,11 @@ const ChatRoom = ({ lobbyId, hostUserId, username, onLeave }: ChatRoomProps) => 
   const [closedBanner, setClosedBanner] = useState('');
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   const [currentReputation, setCurrentReputation] = useState(
     Number(localStorage.getItem('userReputation')) || 50
   );
-
-  // Toast notification state
-  const [toast, setToast] = useState<{
-    show: boolean;
-    message: string;
-    type: 'positive' | 'negative' | 'neutral';
-  }>({ show: false, message: '', type: 'neutral' });
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'positive' | 'negative' | 'neutral' }>({ show: false, message: '', type: 'neutral' });
 
   const userId = localStorage.getItem('userId') || '';
   const isHost = userId === hostUserId;
@@ -49,321 +37,141 @@ const ChatRoom = ({ lobbyId, hostUserId, username, onLeave }: ChatRoomProps) => 
     socketRef.current.emit("join_lobby", lobbyId);
 
     socketRef.current.on("load_history", (history: any[]) => {
-      const formatted = history.map(msg => ({
-        username: msg.user.username,
-        message: msg.content,
-        isToxic: msg.isToxic || false
-      }));
-      setMessages(formatted);
+      setMessages(history.map(msg => ({ username: msg.user.username, message: msg.content, isToxic: msg.isToxic || false })));
     });
 
     socketRef.current.on("receive_message", (data: Message) => {
-      setMessages((prev) => [...prev, data]);
+      setMessages(prev => [...prev, data]);
     });
 
-<<<<<<< HEAD
-    // 🔥 FIXED: Added defensive checks
     socketRef.current.on("reputation_update", (data: any) => {
-      console.log('📊 Reputation update received:', data);
-      
-      // Handle both object and number formats
-      let newScore: number;
-      let change: number = 0;
-      let reason: string = '';
-      
-      if (typeof data === 'number') {
-        // Old format: just the score
-        newScore = data;
-      } else if (typeof data === 'object' && data !== null) {
-        // New format: { newScore, change, reason }
+      let newScore: number, change = 0, reason = '';
+      if (typeof data === 'number') { newScore = data; }
+      else if (typeof data === 'object' && data !== null) {
         newScore = data.newScore || data.score || currentReputation;
-        change = data.change || 0;
-        reason = data.reason || '';
-      } else {
-        console.error('Invalid reputation update format:', data);
-        return;
-      }
-      
-      // Update reputation state
+        change = data.change || 0; reason = data.reason || '';
+      } else return;
       setCurrentReputation(newScore);
       localStorage.setItem('userReputation', String(newScore));
-      
-      // Show toast notification
-      if (change > 0) {
-        showToast(
-          `+${change} Rep: ${reason} (${newScore}/100)`,
-          'positive'
-        );
-      } else if (change < 0) {
-        showToast(
-          `${change} Rep: ${reason} (${newScore}/100)`,
-          'negative'
-        );
-      } else if (reason) {
-        showToast(
-          `${reason} (${newScore}/100)`,
-          'neutral'
-        );
-      }
+      if (change > 0) showToast(`+${change} Rep: ${reason} (${newScore}/100)`, 'positive');
+      else if (change < 0) showToast(`${change} Rep: ${reason} (${newScore}/100)`, 'negative');
+      else if (reason) showToast(`${reason} (${newScore}/100)`, 'neutral');
     });
 
-    // Cleanup
-=======
-    // Session closed by host or auto-triggered
     socketRef.current.on("session_closed", () => {
       setClosedBanner("This lobby has been closed.");
       setTimeout(() => onLeave(), 2500);
     });
 
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
     return () => {
       if (socketRef.current) {
         socketRef.current.off("load_history");
         socketRef.current.off("receive_message");
         socketRef.current.off("reputation_update");
+        socketRef.current.off("session_closed");
         socketRef.current.disconnect();
       }
     };
   }, [lobbyId]);
 
-  // Separate effect for auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Toast notification helper
   const showToast = (message: string, type: 'positive' | 'negative' | 'neutral') => {
     setToast({ show: true, message, type });
-    setTimeout(() => {
-      setToast({ show: false, message: '', type: 'neutral' });
-    }, 3000);
+    setTimeout(() => setToast({ show: false, message: '', type: 'neutral' }), 3000);
   };
 
   const sendMessage = () => {
     if (!input.trim() || !socketRef.current) return;
-
-    socketRef.current.emit("send_message", {
-      lobbyId,
-      userId,
-      message: input
-    });
-
+    socketRef.current.emit("send_message", { lobbyId, userId, message: input });
     setInput('');
   };
 
-<<<<<<< HEAD
-  const getReputationColor = (score: number) => {
-    if (score >= 70) return '#22c55e';
-    if (score >= 30) return '#f59e0b';
-    return '#ef4444';
-  };
-
-  const getReputationEmoji = (score: number) => {
-    if (score >= 70) return '😊';
-    if (score >= 30) return '😐';
-    return '😠';
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'white', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
-      
-      {/* TOAST NOTIFICATION */}
-      {toast.show && (
-        <div style={{
-          position: 'absolute',
-          top: '80px',
-          right: '20px',
-          zIndex: 1000,
-          background: toast.type === 'positive' 
-            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-            : toast.type === 'negative'
-              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-              : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-          color: 'white',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          fontWeight: '600',
-          fontSize: '14px',
-          animation: 'slideIn 0.3s ease-out'
-        }}>
-          {toast.type === 'positive' && '✨ '}
-          {toast.type === 'negative' && '⚠️ '}
-          {toast.type === 'neutral' && '💬 '}
-          {toast.message}
-=======
   const handleLeave = async () => {
-    try {
-      await api.post('/lfg/leave', { sessionId: lobbyId });
-    } catch (err) {
-      console.error("Leave failed:", err);
-    }
+    try { await api.post('/lfg/leave', { sessionId: lobbyId }); } catch (err) { console.error("Leave failed:", err); }
     socketRef.current?.disconnect();
     onLeave();
   };
 
   const handleClose = async () => {
-    try {
-      await api.patch(`/lfg/sessions/${lobbyId}/close`);
-      // session_closed socket event will trigger the redirect for all users
-    } catch (err) {
-      console.error("Close failed:", err);
-      onLeave(); // fallback
-    }
+    try { await api.patch(`/lfg/sessions/${lobbyId}/close`); }
+    catch (err) { console.error("Close failed:", err); onLeave(); }
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'white', borderRadius: '10px', overflow: 'hidden' }}>
+  const repColor = currentReputation >= 70 ? '#10b981' : currentReputation >= 30 ? '#f59e0b' : '#ef4444';
 
-      {/* CLOSED BANNER */}
-      {closedBanner && (
-        <div style={{ padding: '10px', background: '#ef4444', color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
-          {closedBanner}
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
+  return (
+    <div style={s.wrap}>
+      {/* Toast */}
+      {toast.show && (
+        <div style={{
+          ...s.toast,
+          background: toast.type === 'positive' ? 'linear-gradient(135deg,#10b981,#059669)'
+            : toast.type === 'negative' ? 'linear-gradient(135deg,#ef4444,#dc2626)'
+            : 'linear-gradient(135deg,#3b82f6,#2563eb)',
+        }}>
+          {toast.type === 'positive' && '✨ '}{toast.type === 'negative' && '⚠️ '}{toast.type === 'neutral' && '💬 '}
+          {toast.message}
         </div>
       )}
 
-      {/* HEADER */}
-<<<<<<< HEAD
-      <div style={{ 
-        padding: '15px', 
-        background: '#34495e', 
-        color: 'white', 
-        display: 'flex', 
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: '18px' }}>Lobby: {lobbyId.substring(0, 8)}...</h3>
-        </div>
-        
-        {/* REPUTATION DISPLAY */}
-        <div style={{ 
-          background: 'rgba(255,255,255,0.1)', 
-          padding: '8px 16px', 
-          borderRadius: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span style={{ fontSize: '20px' }}>
-            {getReputationEmoji(currentReputation)}
-          </span>
+      {/* Closed banner */}
+      {closedBanner && (
+        <div style={s.closedBanner}>{closedBanner}</div>
+      )}
+
+      {/* Header */}
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <div style={s.lobbyDot} />
           <div>
-            <div style={{ fontSize: '10px', opacity: 0.8, textAlign: 'center' }}>
-              Your Reputation
-            </div>
-            <div style={{ 
-              fontSize: '18px', 
-              fontWeight: 'bold',
-              color: getReputationColor(currentReputation)
-            }}>
-              {currentReputation}/100
-            </div>
+            <div style={s.lobbyName}>Lobby {lobbyId.substring(0, 8)}…</div>
+            <div style={s.lobbyStatus}>Live · {isHost ? 'Host' : 'Member'}</div>
           </div>
         </div>
-        
-        <button onClick={onLeave} style={{ 
-          background: '#ef4444', 
-          color: 'white', 
-          border: 'none',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontWeight: 'bold'
-        }}>
-          Leave
-        </button>
-=======
-      <div style={{ padding: '15px', background: '#34495e', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0 }}>Lobby: {lobbyId}</h3>
-        <div style={{ display: 'flex', gap: '8px' }}>
+
+        {/* Reputation chip */}
+        <div style={{ ...s.repChip, border: `1px solid ${repColor}44`, color: repColor, background: `${repColor}11` }}>
+          {currentReputation}/100 Rep
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
           {isHost ? (
-            <button
-              onClick={handleClose}
-              style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 12px', cursor: 'pointer' }}
-            >
-              Close Lobby
-            </button>
+            <button onClick={handleClose} style={s.closeBtn}>Close Lobby</button>
           ) : (
-            <button
-              onClick={handleLeave}
-              style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 12px', cursor: 'pointer' }}
-            >
-              Leave
-            </button>
+            <button onClick={handleLeave} style={s.leaveBtn}>Leave</button>
           )}
         </div>
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
       </div>
 
-      {/* MESSAGES */}
-      <div style={{ flex: 1, padding: '20px', overflowY: 'auto', background: '#ecf0f1', display: 'flex', flexDirection: 'column' }}>
+      {/* Messages */}
+      <div style={s.messages}>
+        {messages.length === 0 && (
+          <div style={s.emptyChat}>No messages yet. Say hello! 👋</div>
+        )}
         {messages.map((msg, idx) => {
           const isMe = msg.username === "You" || msg.username === username;
-<<<<<<< HEAD
           const isToxic = msg.isToxic || false;
-          
           return (
-            <div key={idx} style={{ 
-              marginBottom: '14px', 
-              alignSelf: isMe ? 'flex-end' : 'flex-start',
-              textAlign: isMe ? 'right' : 'left',
-              maxWidth: '75%'
-            }}>
-              
-              {/* TOXIC WARNING */}
-              {isToxic && (
-                <div style={{
-                  background: '#fee2e2',
-                  border: '2px solid #ef4444',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  marginBottom: '6px',
-                  fontSize: '13px',
-                  color: '#991b1b',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)'
-                }}>
-                  ⚠️ Toxic message detected
-                </div>
+            <div key={idx} style={{ ...s.msgRow, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+              {!isMe && (
+                <div style={s.msgAvatar}>{msg.username.charAt(0).toUpperCase()}</div>
               )}
-              
-              {/* MESSAGE BUBBLE */}
-              <div style={{ 
-                background: isToxic 
-                  ? '#fca5a5'
-                  : (isMe ? '#3498db' : '#bdc3c7'),
-                color: isToxic 
-                  ? '#7f1d1d'
-                  : (isMe ? 'white' : 'black'),
-                padding: '10px 14px', 
-                borderRadius: '16px',
-                display: 'inline-block',
-                border: isToxic ? '2px solid #dc2626' : 'none',
-                boxShadow: isToxic 
-                  ? '0 2px 8px rgba(239, 68, 68, 0.3)'
-                  : '0 1px 2px rgba(0,0,0,0.1)',
-                transition: 'all 0.2s ease'
-=======
-
-          return (
-            <div key={idx} style={{
-              marginBottom: '10px',
-              alignSelf: isMe ? 'flex-end' : 'flex-start',
-              textAlign: isMe ? 'right' : 'left'
-            }}>
-              <div style={{
-                background: isMe ? '#3498db' : '#bdc3c7',
-                color: isMe ? 'white' : 'black',
-                padding: '8px 12px',
-                borderRadius: '15px',
-                display: 'inline-block'
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
-              }}>
-                {isToxic && <span style={{ fontSize: '16px', marginRight: '6px' }}>⚠️</span>}
-                <strong>{msg.username}: </strong>
-                {msg.message || msg.content}
+              <div style={{ maxWidth: '72%' }}>
+                {!isMe && <div style={s.msgUsername}>{msg.username}</div>}
+                {isToxic && (
+                  <div style={s.toxicWarning}>⚠️ Toxic message detected</div>
+                )}
+                <div style={{
+                  ...s.bubble,
+                  background: isToxic ? 'rgba(239,68,68,0.15)' : isMe ? 'linear-gradient(135deg, #667eea, #764ba2)' : 'rgba(255,255,255,0.08)',
+                  border: isToxic ? '1px solid rgba(239,68,68,0.4)' : isMe ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                  color: isToxic ? '#f87171' : '#f1f5f9',
+                  borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  boxShadow: isToxic ? '0 2px 8px rgba(239,68,68,0.2)' : 'none',
+                }}>
+                  {msg.message || msg.content}
+                </div>
               </div>
             </div>
           );
@@ -371,61 +179,105 @@ const ChatRoom = ({ lobbyId, hostUserId, username, onLeave }: ChatRoomProps) => 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT */}
-<<<<<<< HEAD
-      <div style={{ padding: '15px', display: 'flex', gap: '10px' }}>
-        <input 
-          value={input} 
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Type a message... (Nice messages gain reputation!)" 
-          style={{ 
-            flex: 1, 
-            padding: '10px',
-            borderRadius: '6px',
-            border: '1px solid #ccc'
-          }}
-=======
-      <div style={{ padding: '15px', display: 'flex' }}>
+      {/* Input */}
+      <div style={s.inputRow}>
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Type a message..."
-          style={{ flex: 1, padding: '10px' }}
->>>>>>> aad6b7800a3d9d79befb563f031b7f8af0dec04d
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && sendMessage()}
+          placeholder="Type a message… nice messages boost reputation!"
+          style={s.input}
         />
-        <button 
-          onClick={sendMessage} 
-          style={{ 
-            padding: '10px 20px', 
-            cursor: 'pointer',
-            background: '#3498db',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: 'bold'
-          }}
-        >
-          Send
-        </button>
+        <button onClick={sendMessage} style={s.sendBtn}>Send →</button>
       </div>
 
-      {/* CSS ANIMATION */}
       <style>{`
-        @keyframes slideIn {
-          from {
-            transform: translateX(400px);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
+        @keyframes slideInToast {
+          from { transform: translateX(120%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
         }
       `}</style>
     </div>
   );
+};
+
+const s: Record<string, React.CSSProperties> = {
+  wrap: {
+    display: 'flex', flexDirection: 'column', height: '100%',
+    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 16, overflow: 'hidden', position: 'relative',
+  },
+  toast: {
+    position: 'absolute', top: 80, right: 16, zIndex: 100,
+    color: '#fff', padding: '10px 18px', borderRadius: 10,
+    fontWeight: 600, fontSize: 13, boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+    animation: 'slideInToast 0.3s ease',
+  },
+  closedBanner: {
+    padding: '10px 20px', background: 'rgba(239,68,68,0.15)',
+    border: '1px solid rgba(239,68,68,0.3)', color: '#f87171',
+    textAlign: 'center', fontWeight: 700, fontSize: 14,
+  },
+  header: {
+    display: 'flex', alignItems: 'center', gap: 16,
+    padding: '16px 20px', background: 'rgba(0,0,0,0.2)',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12, flex: 1 },
+  lobbyDot: {
+    width: 10, height: 10, borderRadius: '50%',
+    background: '#10b981', boxShadow: '0 0 8px rgba(16,185,129,0.6)', flexShrink: 0,
+  },
+  lobbyName: { fontSize: 15, fontWeight: 700, color: '#f1f5f9' },
+  lobbyStatus: { fontSize: 11, color: '#475569' },
+  repChip: {
+    padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+  },
+  closeBtn: {
+    padding: '7px 14px', background: 'rgba(239,68,68,0.15)',
+    border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8,
+    color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  },
+  leaveBtn: {
+    padding: '7px 14px', background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+    color: '#94a3b8', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  },
+  messages: {
+    flex: 1, overflowY: 'auto', padding: '20px',
+    display: 'flex', flexDirection: 'column', gap: 12,
+  },
+  emptyChat: { textAlign: 'center', color: '#475569', fontSize: 14, paddingTop: 40 },
+  msgRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
+  msgAvatar: {
+    width: 28, height: 28, borderRadius: '50%', background: 'rgba(124,58,237,0.3)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 11, fontWeight: 700, color: '#a78bfa', flexShrink: 0,
+  },
+  msgUsername: { fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 600 },
+  toxicWarning: {
+    fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.1)',
+    border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6,
+    padding: '4px 8px', marginBottom: 4, fontWeight: 600,
+  },
+  bubble: {
+    padding: '10px 14px', fontSize: 14, lineHeight: 1.5,
+  },
+  inputRow: {
+    display: 'flex', gap: 10, padding: '14px 16px',
+    background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.06)',
+  },
+  input: {
+    flex: 1, padding: '11px 16px',
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 10, color: '#f1f5f9', fontSize: 14,
+  },
+  sendBtn: {
+    padding: '11px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)',
+    border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700,
+    cursor: 'pointer', boxShadow: '0 4px 12px rgba(124,58,237,0.3)',
+    whiteSpace: 'nowrap',
+  },
 };
 
 export default ChatRoom;
