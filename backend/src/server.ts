@@ -14,6 +14,7 @@ import adminRoutes from './routes/adminRoutes';      // 👈 NEW IMPORT
 import moderatorRoutes from './routes/moderatorRoutes'; // 👈 NEW IMPORT
 import behavioralRoutes from './routes/behavioralRoutes';
 import endorsementRoutes from './routes/endorsementRoutes';
+import agentRoutes from './routes/agentRoutes';
 
 console.log("1. Starting server script...");
 
@@ -48,6 +49,7 @@ app.use('/api/admin', adminRoutes);          // 👈 WIRES UP /api/admin/stats
 app.use('/api/moderator', moderatorRoutes);  // 👈 WIRES UP /api/moderator/ban
 app.use('/api/behavioral', behavioralRoutes);
 app.use('/api/endorsements', endorsementRoutes);
+app.use('/api/agents', agentRoutes);
 
 const PORT = process.env.PORT || 5000;
 

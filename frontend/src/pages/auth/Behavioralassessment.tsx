@@ -1,406 +1,343 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
+interface ChatMessage {
+  role: 'agent' | 'user';
+  text: string;
+}
+
+const TOTAL_QUESTIONS = 5;
+
 const BehavioralAssessment = () => {
   const navigate = useNavigate();
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<number[]>(new Array(10).fill(3));
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userTurns, setUserTurns] = useState(0);
+  const [done, setDone] = useState(false);
+  const [startError, setStartError] = useState(false);
 
-  const questions = [
-    {
-      id: 1,
-      text: "I prefer voice chat during games",
-      category: "Communication",
-      scale: { low: "Never", high: "Always" }
-    },
-    {
-      id: 2,
-      text: "I like to chat frequently with teammates",
-      category: "Communication",
-      scale: { low: "Silent Player", high: "Very Chatty" }
-    },
-    {
-      id: 3,
-      text: "Winning is more important than having fun",
-      category: "Competitive",
-      scale: { low: "Strongly Disagree", high: "Strongly Agree" }
-    },
-    {
-      id: 4,
-      text: "I get frustrated when teammates make mistakes",
-      category: "Competitive",
-      scale: { low: "Never", high: "Very Often" }
-    },
-    {
-      id: 5,
-      text: "I can handle trash talk without getting upset",
-      category: "Toxicity Tolerance",
-      scale: { low: "Can't Handle It", high: "Doesn't Bother Me" }
-    },
-    {
-      id: 6,
-      text: "Toxic behavior from others doesn't affect me",
-      category: "Toxicity Tolerance",
-      scale: { low: "Bothers Me a Lot", high: "Doesn't Bother Me" }
-    },
-    {
-      id: 7,
-      text: "I enjoy helping new players learn the game",
-      category: "Mentorship",
-      scale: { low: "Not Interested", high: "Love Teaching" }
-    },
-    {
-      id: 8,
-      text: "I'm willing to teach strategies to teammates",
-      category: "Mentorship",
-      scale: { low: "No", high: "Absolutely" }
-    },
-    {
-      id: 9,
-      text: "I show up on time for scheduled gaming sessions",
-      category: "Reliability",
-      scale: { low: "Rarely", high: "Always" }
-    },
-    {
-      id: 10,
-      text: "I commit to finishing games I start",
-      category: "Reliability",
-      scale: { low: "Sometimes Quit", high: "Always Finish" }
+  // Guard: redirect to login if not authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { replace: true });
     }
-  ];
+  }, [navigate]);
 
-  const handleAnswer = (value: number) => {
-    const newAnswers = [...answers];
-    newAnswers[currentQuestion] = value;
-    setAnswers(newAnswers);
-  };
+  // Start the session as soon as the component mounts
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return; // handled by auth guard above
 
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    }
-  };
+    const userId = localStorage.getItem('userId');
 
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
-    }
-  };
+    api.post('/agents/onboarding/start', { userId })
+      .then(res => {
+        setSessionId(res.data.sessionId);
+        setMessages([{ role: 'agent', text: res.data.firstQuestion }]);
+      })
+      .catch(() => setStartError(true));
+  }, []);
 
-  const handleSubmit = async () => {
+  // Auto-scroll to the latest message
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || !sessionId || loading || done) return;
+
+    const userId = localStorage.getItem('userId');
+
+    setMessages(prev => [...prev, { role: 'user', text }]);
+    setInput('');
     setLoading(true);
+
     try {
-      await api.post('/behavioral/assessment', { answers });
-      
-      // Mark assessment as completed
-      localStorage.setItem('assessmentCompleted', 'true');
-      
-      alert('🎮 Gamer DNA Profile Created! Welcome to GameNexus!');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Failed to submit assessment:', err);
-      alert('Failed to submit assessment. Please try again.');
+      const res = await api.post('/agents/onboarding/message', {
+        sessionId,
+        userId,
+        message: text,
+      });
+
+      const newTurns = userTurns + 1;
+      setUserTurns(newTurns);
+      setMessages(prev => [...prev, { role: 'agent', text: res.data.reply }]);
+
+      if (res.data.isComplete) {
+        setDone(true);
+        localStorage.setItem('assessmentCompleted', 'true');
+        setTimeout(() => navigate('/dashboard'), 2200);
+      }
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        { role: 'agent', text: "Sorry, I couldn't process that. Please try again." },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
-  const question = questions[currentQuestion];
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const progress = Math.min((userTurns / TOTAL_QUESTIONS) * 100, 100);
+
+  // ─── Error state ──────────────────────────────────────────────────────────
+  if (startError) {
+    return (
+      <div style={s.page}>
+        <div style={s.orb1} /><div style={s.orb2} />
+        <div style={{ ...s.card, textAlign: 'center', maxWidth: 480 }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+          <h2 style={{ color: '#f1f5f9', marginBottom: 12 }}>Could not start session</h2>
+          <p style={{ color: '#94a3b8', marginBottom: 24 }}>
+            Make sure you are logged in and the server is running.
+          </p>
+          <button style={s.sendBtn} onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Loading / initialising ───────────────────────────────────────────────
+  if (!sessionId) {
+    return (
+      <div style={s.page}>
+        <div style={s.orb1} /><div style={s.orb2} />
+        <div style={{ textAlign: 'center' }}>
+          <div style={s.typingDot} />
+          <p style={{ color: '#94a3b8', marginTop: 20 }}>Starting your profile session…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div style={s.page}>
+      <div style={s.orb1} />
+      <div style={s.orb2} />
+
+      <div style={s.container}>
         {/* Header */}
-        <div style={styles.header}>
-          <h1 style={styles.title}>🧬 Create Your Gamer DNA</h1>
-          <p style={styles.subtitle}>
-            Help us understand your gaming style to match you with compatible players
+        <div style={s.header}>
+          <div style={s.logoWrap}>
+            <div style={s.logoIcon}>⚡</div>
+            <span style={s.logoText}>GameNexus</span>
+          </div>
+          <h1 style={s.title}>🧬 Create Your Gamer DNA</h1>
+          <p style={s.subtitle}>
+            Answer {TOTAL_QUESTIONS} questions to build your behavioral profile
           </p>
         </div>
 
-        {/* Progress Bar */}
-        <div style={styles.progressContainer}>
-          <div style={styles.progressBar}>
-            <div style={{ ...styles.progressFill, width: `${progress}%` }} />
+        {/* Progress bar */}
+        <div style={s.progressWrap}>
+          <div style={s.progressHeader}>
+            <span style={s.progressLabel}>
+              {done ? 'Profile complete!' : `${userTurns} / ${TOTAL_QUESTIONS} questions answered`}
+            </span>
+            <span style={s.progressPct}>{Math.round(progress)}%</span>
           </div>
-          <span style={styles.progressText}>
-            Question {currentQuestion + 1} of {questions.length}
-          </span>
-        </div>
-
-        {/* Question Card */}
-        <div style={styles.questionCard}>
-          <div style={styles.categoryBadge}>{question.category}</div>
-          <h2 style={styles.questionText}>{question.text}</h2>
-
-          {/* Scale */}
-          <div style={styles.scaleContainer}>
-            <div style={styles.scaleLabels}>
-              <span style={styles.scaleLabel}>{question.scale.low}</span>
-              <span style={styles.scaleLabel}>{question.scale.high}</span>
-            </div>
-
-            {/* Rating Buttons */}
-            <div style={styles.ratingButtons}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => handleAnswer(value)}
-                  style={{
-                    ...styles.ratingButton,
-                    ...(answers[currentQuestion] === value ? styles.ratingButtonActive : {})
-                  }}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-
-            {/* Visual Slider */}
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={answers[currentQuestion]}
-              onChange={(e) => handleAnswer(Number(e.target.value))}
-              style={styles.slider}
-            />
-          </div>
-
-          {/* Current Selection */}
-          <div style={styles.selectionDisplay}>
-            <span style={styles.selectionLabel}>Your Selection:</span>
-            <span style={styles.selectionValue}>{answers[currentQuestion]}/5</span>
+          <div style={s.progressTrack}>
+            <div style={{ ...s.progressFill, width: `${progress}%` }} />
           </div>
         </div>
 
-        {/* Navigation Buttons */}
-        <div style={styles.navigationButtons}>
+        {/* Chat window */}
+        <div style={s.chatWindow}>
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                marginBottom: 12,
+              }}
+            >
+              {m.role === 'agent' && (
+                <div style={s.agentAvatar}>🤖</div>
+              )}
+              <div
+                style={
+                  m.role === 'agent'
+                    ? s.agentBubble
+                    : s.userBubble
+                }
+              >
+                {m.text}
+              </div>
+            </div>
+          ))}
+
+          {/* Typing indicator while waiting */}
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={s.agentAvatar}>🤖</div>
+              <div style={s.agentBubble}>
+                <span className="typing-dot">
+                  <span /><span /><span />
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Completion message */}
+          {done && (
+            <div style={s.completionBanner}>
+              ✅ Gamer DNA profile created! Redirecting to dashboard…
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input row */}
+        <div style={s.inputRow}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={done ? 'Profile complete!' : 'Type your answer… (Enter to send)'}
+            disabled={loading || done || !sessionId}
+            rows={2}
+            style={s.textarea}
+          />
           <button
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
+            onClick={handleSend}
+            disabled={!input.trim() || loading || done}
             style={{
-              ...styles.navButton,
-              ...styles.prevButton,
-              ...(currentQuestion === 0 ? styles.navButtonDisabled : {})
+              ...s.sendBtn,
+              opacity: !input.trim() || loading || done ? 0.4 : 1,
             }}
           >
-            ← Previous
+            {loading ? '…' : '→'}
           </button>
-
-          {currentQuestion === questions.length - 1 ? (
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              style={{
-                ...styles.navButton,
-                ...styles.submitButton,
-                ...(loading ? styles.navButtonDisabled : {})
-              }}
-            >
-              {loading ? 'Creating Profile...' : 'Complete Assessment ✓'}
-            </button>
-          ) : (
-            <button
-              onClick={handleNext}
-              style={{
-                ...styles.navButton,
-                ...styles.nextButton
-              }}
-            >
-              Next →
-            </button>
-          )}
         </div>
 
-        {/* Help Text */}
-        <p style={styles.helpText}>
-          💡 Be honest! Better matches come from authentic answers.
-        </p>
+        <p style={s.hint}>💡 Be honest — better matches come from authentic answers. Shift+Enter for a new line.</p>
       </div>
     </div>
   );
 };
 
-const styles: { [key: string]: React.CSSProperties } = {
+const s: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'radial-gradient(ellipse at 30% 70%, #1a0533 0%, #06060f 60%)',
+    padding: 20, position: 'relative', overflow: 'hidden',
+  },
+  orb1: {
+    position: 'fixed', width: 600, height: 600, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)',
+    top: '-20%', right: '-10%', pointerEvents: 'none',
+  },
+  orb2: {
+    position: 'fixed', width: 400, height: 400, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(34,211,238,0.08) 0%, transparent 70%)',
+    bottom: '-10%', left: '-5%', pointerEvents: 'none',
+  },
   container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    padding: '20px',
+    width: '100%', maxWidth: 680, position: 'relative', zIndex: 1,
   },
-  card: {
-    background: 'white',
-    borderRadius: '20px',
-    padding: '40px',
-    maxWidth: '700px',
-    width: '100%',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  header: { textAlign: 'center', marginBottom: 24 },
+  logoWrap: { display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 16 },
+  logoIcon: {
+    width: 36, height: 36, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+    boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
   },
-  header: {
-    textAlign: 'center',
-    marginBottom: '30px',
-  },
-  title: {
-    fontSize: '32px',
-    fontWeight: 'bold',
-    color: '#1f2937',
-    margin: '0 0 10px 0',
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#6b7280',
-    margin: 0,
-  },
-  progressContainer: {
-    marginBottom: '30px',
-  },
-  progressBar: {
-    width: '100%',
-    height: '8px',
-    background: '#e5e7eb',
-    borderRadius: '4px',
-    overflow: 'hidden',
-    marginBottom: '8px',
+  logoText: { fontSize: 18, fontWeight: 800, color: '#f1f5f9' },
+  title: { fontSize: 26, fontWeight: 800, color: '#f1f5f9', marginBottom: 6 },
+  subtitle: { fontSize: 14, color: '#64748b', margin: 0 },
+  progressWrap: { marginBottom: 16 },
+  progressHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
+  progressLabel: { fontSize: 13, color: '#94a3b8', fontWeight: 600 },
+  progressPct: { fontSize: 13, color: '#a78bfa', fontWeight: 700 },
+  progressTrack: {
+    height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden',
   },
   progressFill: {
-    height: '100%',
-    background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-    transition: 'width 0.3s ease',
+    height: '100%', background: 'linear-gradient(90deg, #667eea 0%, #a78bfa 100%)',
+    borderRadius: 3, transition: 'width 0.5s ease',
   },
-  progressText: {
-    fontSize: '14px',
-    color: '#6b7280',
-    fontWeight: '600',
+  chatWindow: {
+    background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+    padding: '20px 20px 12px', marginBottom: 12,
+    maxHeight: 420, overflowY: 'auto',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
   },
-  questionCard: {
-    background: '#f9fafb',
-    padding: '30px',
-    borderRadius: '12px',
-    marginBottom: '30px',
+  agentAvatar: {
+    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+    background: 'rgba(124,58,237,0.25)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', fontSize: 16,
+    marginRight: 8, alignSelf: 'flex-end',
   },
-  categoryBadge: {
-    display: 'inline-block',
-    background: '#dbeafe',
-    color: '#1e40af',
-    padding: '6px 12px',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: '600',
-    marginBottom: '16px',
+  agentBubble: {
+    background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.3)',
+    borderRadius: '18px 18px 18px 4px',
+    padding: '10px 16px', maxWidth: '78%',
+    color: '#e2e8f0', fontSize: 15, lineHeight: 1.55,
   },
-  questionText: {
-    fontSize: '24px',
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: '30px',
-    lineHeight: '1.4',
-  },
-  scaleContainer: {
-    marginBottom: '20px',
-  },
-  scaleLabels: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '16px',
-  },
-  scaleLabel: {
-    fontSize: '13px',
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  ratingButtons: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '10px',
-    marginBottom: '20px',
-  },
-  ratingButton: {
-    flex: 1,
-    padding: '16px',
-    background: 'white',
-    border: '2px solid #e5e7eb',
-    borderRadius: '12px',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#6b7280',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  ratingButtonActive: {
+  userBubble: {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    border: '2px solid #667eea',
-    transform: 'scale(1.05)',
+    borderRadius: '18px 18px 4px 18px',
+    padding: '10px 16px', maxWidth: '78%',
+    color: '#fff', fontSize: 15, lineHeight: 1.55,
+    boxShadow: '0 4px 12px rgba(124,58,237,0.35)',
   },
-  slider: {
-    width: '100%',
-    height: '8px',
-    borderRadius: '4px',
-    outline: 'none',
-    cursor: 'pointer',
+  typingDots: {
+    display: 'inline-flex', gap: 4, alignItems: 'center',
   },
-  selectionDisplay: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '10px',
-    marginTop: '20px',
-    padding: '12px',
-    background: 'white',
-    borderRadius: '8px',
+  typingDot: {
+    width: 40, height: 40, borderRadius: '50%',
+    border: '3px solid #667eea', borderTopColor: 'transparent',
+    display: 'inline-block', margin: '0 auto',
+    animation: 'spin 0.8s linear infinite',
   },
-  selectionLabel: {
-    fontSize: '14px',
-    color: '#6b7280',
+  completionBanner: {
+    textAlign: 'center', marginTop: 8, marginBottom: 4,
+    padding: '12px 20px', borderRadius: 12,
+    background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
+    color: '#10b981', fontSize: 14, fontWeight: 600,
   },
-  selectionValue: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#667eea',
+  inputRow: {
+    display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10,
   },
-  navigationButtons: {
-    display: 'flex',
-    gap: '16px',
-    marginBottom: '20px',
+  textarea: {
+    flex: 1, resize: 'none',
+    background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
+    color: '#f1f5f9', fontSize: 15, padding: '12px 16px',
+    outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
   },
-  navButton: {
-    flex: 1,
-    padding: '16px',
-    border: 'none',
-    borderRadius: '12px',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  prevButton: {
-    background: '#f3f4f6',
-    color: '#374151',
-  },
-  nextButton: {
+  sendBtn: {
+    padding: '0 22px', height: 52, border: 'none', borderRadius: 14,
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
+    color: '#fff', fontSize: 20, fontWeight: 700, cursor: 'pointer',
+    boxShadow: '0 4px 16px rgba(124,58,237,0.4)', flexShrink: 0,
+    transition: 'opacity 0.2s',
   },
-  submitButton: {
-    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-    color: 'white',
+  card: {
+    background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+    padding: '28px 32px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
   },
-  navButtonDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  },
-  helpText: {
-    textAlign: 'center',
-    fontSize: '14px',
-    color: '#6b7280',
-    margin: 0,
-  },
+  hint: { textAlign: 'center', fontSize: 12, color: '#475569', margin: 0 },
 };
 
 export default BehavioralAssessment;

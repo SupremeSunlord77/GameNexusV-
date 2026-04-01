@@ -35,7 +35,7 @@ export const setupSocketHandlers = (io: Server) => {
         console.log('💬 Message received:', message);
 
         // 🤖 AI ANALYSIS
-        const analysis = await analyzeBehavior(userId, message);
+        const analysis = await analyzeBehavior(userId, message, lobbyId);
         
         console.log('📊 Analysis complete:', {
           newRep: analysis.newRep,

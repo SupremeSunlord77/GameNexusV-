@@ -249,7 +249,7 @@ export const getMatches = async (req: Request, res: Response) => {
       where: {
         id: { not: currentUserId },
         isBanned: false,
-        behavioralVectors: { not: null }
+        behavioralVectors: { not: null } as never
       },
       select: {
         id: true,
@@ -282,7 +282,7 @@ export const getMatches = async (req: Request, res: Response) => {
         id: candidate.id,
         username: candidate.username,
         reputation: candidate.reputation,
-        profile: candidate.profile,
+        profile: (candidate as any).profile,
         bartleType: (candidate.gamerDNA as any)?.bartleType,
         playStyleTags: (candidate.gamerDNA as any)?.playStyleTags ?? [],
         compatibilityScore,
