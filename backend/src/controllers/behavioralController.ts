@@ -223,6 +223,82 @@ export const calculateCompatibility = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Get Top Compatible Players for Current User
+ * GET /api/behavioral/matches
+ */
+export const getMatches = async (req: Request, res: Response) => {
+  try {
+    const currentUserId = req.user?.id || req.user?.userId;
+    if (!currentUserId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: { behavioralVectors: true, eigenTrustScore: true }
+    });
+
+    if (!currentUser?.behavioralVectors) {
+      res.json({ needsAssessment: true, message: "Complete behavioral assessment first", matches: [] });
+      return;
+    }
+
+    const candidates = await prisma.user.findMany({
+      where: {
+        id: { not: currentUserId },
+        isBanned: false,
+        behavioralVectors: { not: null } as never
+      },
+      select: {
+        id: true,
+        username: true,
+        eigenTrustScore: true,
+        behavioralVectors: true,
+        gamerDNA: true,
+        reputation: true,
+        profile: { select: { displayName: true, avatarUrl: true, region: true } }
+      }
+    });
+
+    const v1 = currentUser.behavioralVectors as any;
+
+    const scored = candidates.map((candidate) => {
+      const v2 = candidate.behavioralVectors as any;
+      const distance = Math.sqrt(
+        Math.pow(v1.communicationDensity - v2.communicationDensity, 2) +
+        Math.pow(v1.competitiveIntensity - v2.competitiveIntensity, 2) +
+        Math.pow(v1.scheduleReliability - v2.scheduleReliability, 2) +
+        Math.pow(v1.toxicityTolerance - v2.toxicityTolerance, 2) +
+        Math.pow(v1.mentorshipPropensity - v2.mentorshipPropensity, 2)
+      );
+      const maxDistance = Math.sqrt(5);
+      const behaviorScore = 1 - distance / maxDistance;
+      const trustScore = (currentUser.eigenTrustScore + candidate.eigenTrustScore) / 2;
+      const compatibilityScore = behaviorScore * 0.7 + trustScore * 0.3;
+
+      return {
+        id: candidate.id,
+        username: candidate.username,
+        reputation: candidate.reputation,
+        profile: (candidate as any).profile,
+        bartleType: (candidate.gamerDNA as any)?.bartleType,
+        playStyleTags: (candidate.gamerDNA as any)?.playStyleTags ?? [],
+        compatibilityScore,
+        interpretation: getInterpretation(compatibilityScore)
+      };
+    });
+
+    scored.sort((a, b) => b.compatibilityScore - a.compatibilityScore);
+
+    res.json({ matches: scored.slice(0, 20) });
+  } catch (error) {
+    console.error("Matches error:", error);
+    res.status(500).json({ error: "Failed to fetch matches" });
+  }
+};
+
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================

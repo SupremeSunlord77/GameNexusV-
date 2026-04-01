@@ -116,7 +116,8 @@ export const setupSocketHandlers = (io: Server) => {
         }
 
         // 🤖 AI ANALYSIS
-        const analysis = await analyzeBehavior(userId, message);
+        const analysis = await analyzeBehavior(userId, message, lobbyId);
+
 
         console.log('📊 Analysis complete:', {
           newRep: analysis.newRep,
@@ -158,6 +159,12 @@ export const setupSocketHandlers = (io: Server) => {
         console.error('❌ Error sending message:', err);
         socket.emit('error', { message: 'Failed to send message' });
       }
+    });
+
+    // Join admin/moderator activity room
+    socket.on('join_admin', () => {
+      socket.join('admin-room');
+      console.log(`🛡️ Admin socket ${socket.id} joined admin-room`);
     });
 
     // --- DISCONNECT ---

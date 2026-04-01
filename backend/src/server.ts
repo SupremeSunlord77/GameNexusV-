@@ -16,6 +16,7 @@ import behavioralRoutes from './routes/behavioralRoutes';
 import endorsementRoutes from './routes/endorsementRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import ticketRoutes from './routes/ticketRoutes';
+import agentRoutes from './routes/agentRoutes';
 
 console.log("1. Starting server script...");
 
@@ -52,6 +53,7 @@ app.use('/api/behavioral', behavioralRoutes);
 app.use('/api/endorsements', endorsementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/agents', agentRoutes);
 
 const PORT = process.env.PORT || 5000;
 

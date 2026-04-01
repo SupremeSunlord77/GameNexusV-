@@ -13,37 +13,23 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       const response = await api.post('/auth/login', { email, password });
-      
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('userId', response.data.user.id);
       localStorage.setItem('userRole', response.data.user.role);
-      
-      // Check if user has completed behavioral assessment
       try {
         const profileResponse = await api.get(`/behavioral/profile/${response.data.user.id}`);
-        
         if (profileResponse.data && profileResponse.data.behavioralVectors) {
-          // User has completed assessment
           localStorage.setItem('assessmentCompleted', 'true');
-          
-          // Route based on role
-          if (response.data.user.role === 'ADMIN') {
-            navigate('/admin');
-          } else if (response.data.user.role === 'MODERATOR') {
-            navigate('/moderator');
-          } else {
-            navigate('/dashboard');
-          }
+          if (response.data.user.role === 'ADMIN') navigate('/admin');
+          else if (response.data.user.role === 'MODERATOR') navigate('/moderator');
+          else navigate('/dashboard');
         } else {
-          // User hasn't completed assessment
           localStorage.setItem('assessmentCompleted', 'false');
           navigate('/assessment');
         }
-      } catch (profileErr) {
-        // Profile doesn't exist, needs assessment
+      } catch {
         localStorage.setItem('assessmentCompleted', 'false');
         navigate('/assessment');
       }
@@ -56,94 +42,148 @@ const Login = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.logo}>👾 GameNexus</h1>
-        <h2 style={styles.subtitle}>Welcome Back</h2>
-        
-        <form onSubmit={handleLogin}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Email</label>
-            <input 
-              type="email" 
+    <div style={s.page}>
+      {/* Ambient bg orbs */}
+      <div style={s.orb1} />
+      <div style={s.orb2} />
+
+      <div style={s.card}>
+        {/* Logo */}
+        <div style={s.logoWrap}>
+          <div style={s.logoIcon}>⚡</div>
+          <span style={s.logoText}>GameNexus</span>
+        </div>
+
+        <h2 style={s.title}>Welcome back</h2>
+        <p style={s.subtitle}>Sign in to continue your journey</p>
+
+        <form onSubmit={handleLogin} style={{ marginTop: 28 }}>
+          <div style={s.field}>
+            <label style={s.label}>Email</label>
+            <input
+              type="email"
               placeholder="player@example.com"
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
-              style={styles.input}
-            />
-          </div>
-          
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Password</label>
-            <input 
-              type="password" 
-              placeholder="••••••••"
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              required 
-              style={styles.input}
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              style={s.input}
             />
           </div>
 
-          {error && <div style={styles.errorMessage}>⚠️ {error}</div>}
-          
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{...styles.button, opacity: loading ? 0.7 : 1}}
-          >
-            {loading ? 'Entering Nexus...' : 'Log In'}
+          <div style={s.field}>
+            <label style={s.label}>Password</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              style={s.input}
+            />
+          </div>
+
+          {error && (
+            <div style={s.error}>
+              <span>⚠</span> {error}
+            </div>
+          )}
+
+          <button type="submit" disabled={loading} style={{ ...s.btn, opacity: loading ? 0.7 : 1 }}>
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={s.spinner} /> Signing in...
+              </span>
+            ) : 'Sign In'}
           </button>
         </form>
 
-        <p style={styles.footerText}>
-          Don't have an account?{' '}
-          <Link to="/register" style={styles.link}>Sign Up</Link>
+        <p style={s.footer}>
+          New to GameNexus?{' '}
+          <Link to="/register" style={s.link}>Create account</Link>
         </p>
       </div>
     </div>
   );
 };
 
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    display: 'flex', justifyContent: 'center', alignItems: 'center',
-    width: '100vw', height: '100vh',
-    backgroundColor: '#1a1a1a', fontFamily: "'Inter', sans-serif",
-    margin: 0, padding: 0, position: 'fixed', top: 0, left: 0
+const s: Record<string, React.CSSProperties> = {
+  page: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    minHeight: '100vh', width: '100vw',
+    background: 'radial-gradient(ellipse at 20% 50%, #1a0533 0%, #06060f 60%)',
+    position: 'fixed', top: 0, left: 0, overflow: 'hidden',
+  },
+  orb1: {
+    position: 'fixed', width: 500, height: 500, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)',
+    top: '-10%', left: '-10%', pointerEvents: 'none',
+  },
+  orb2: {
+    position: 'fixed', width: 400, height: 400, borderRadius: '50%',
+    background: 'radial-gradient(circle, rgba(34,211,238,0.1) 0%, transparent 70%)',
+    bottom: '-5%', right: '-5%', pointerEvents: 'none',
   },
   card: {
-    backgroundColor: '#242424', padding: '40px', borderRadius: '16px',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.4)', width: '100%', maxWidth: '400px',
-    textAlign: 'center', border: '1px solid #333',
+    background: 'rgba(255,255,255,0.04)',
+    backdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 24,
+    padding: '44px 40px',
+    width: '100%', maxWidth: 420,
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    position: 'relative', zIndex: 1,
+    animation: 'fadeIn 0.4s ease',
   },
-  logo: { color: '#646cff', fontSize: '28px', marginBottom: '8px', marginTop: 0 },
-  subtitle: { color: '#a1a1aa', fontSize: '16px', fontWeight: '400', marginBottom: '32px', marginTop: 0 },
-  
-  inputGroup: { marginBottom: '20px', textAlign: 'center' },
-  
-  label: { display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px', fontWeight: '500' },
-  
+  logoWrap: {
+    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28,
+  },
+  logoIcon: {
+    width: 40, height: 40, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 18, boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+  },
+  logoText: {
+    fontSize: 20, fontWeight: 800, color: '#f1f5f9',
+    letterSpacing: '-0.5px',
+  },
+  title: {
+    fontSize: 26, fontWeight: 800, color: '#f1f5f9', marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14, color: '#64748b', margin: 0,
+  },
+  field: { marginBottom: 18 },
+  label: {
+    display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 8,
+  },
   input: {
-    width: '100%', padding: '12px 16px', backgroundColor: '#333', border: '1px solid #444',
-    borderRadius: '8px', color: 'white', fontSize: '16px', outline: 'none', 
-    boxSizing: 'border-box', textAlign: 'center'
+    width: '100%', padding: '13px 16px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 10, color: '#f1f5f9', fontSize: 15,
+    boxSizing: 'border-box' as const,
   },
-  
-  button: {
-    width: '100%', padding: '14px', backgroundColor: '#646cff', color: 'white',
-    border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: '600',
-    cursor: 'pointer', marginTop: '10px', transition: 'background-color 0.2s',
+  error: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+    color: '#f87171', padding: '10px 14px', borderRadius: 8,
+    fontSize: 13, marginBottom: 16,
   },
-  
-  errorMessage: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '10px',
-    borderRadius: '6px', fontSize: '14px', marginBottom: '20px', textAlign: 'center'
+  btn: {
+    width: '100%', padding: '14px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: '#fff', border: 'none', borderRadius: 10,
+    fontSize: 15, fontWeight: 700, cursor: 'pointer',
+    boxShadow: '0 4px 16px rgba(124,58,237,0.4)',
+    transition: 'all 0.2s', marginTop: 4,
   },
-  
-  footerText: { marginTop: '24px', color: '#71717a', fontSize: '14px' },
-  link: { color: '#646cff', textDecoration: 'none', fontWeight: '600' }
+  spinner: {
+    width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)',
+    borderTopColor: '#fff', borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite', display: 'inline-block',
+  },
+  footer: { textAlign: 'center', color: '#475569', fontSize: 14, marginTop: 24, marginBottom: 0 },
+  link: { color: '#a78bfa', fontWeight: 700 },
 };
 
 export default Login;

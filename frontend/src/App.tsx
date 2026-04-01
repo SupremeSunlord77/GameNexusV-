@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ModeratorDashboard from './pages/moderator/ModeratorDashboard';
 import UserDashboard from './pages/user/UserDashboard';
+import Compatibility from './pages/user/Compatibility';
 
 // 🆕 NEW: Assessment Requirement Wrapper
 const RequireAssessment = ({ children }: { children: React.ReactNode }) => {
@@ -77,6 +78,18 @@ function App() {
               </ProtectedRoute>
             </RequireAssessment>
           } 
+        />
+
+        {/* --- 🤝 COMPATIBILITY CALCULATOR (Requires Assessment) --- */}
+        <Route
+          path="/compatibility"
+          element={
+            <RequireAssessment>
+              <ProtectedRoute allowedRoles={['USER', 'ADMIN', 'MODERATOR']}>
+                <Compatibility />
+              </ProtectedRoute>
+            </RequireAssessment>
+          }
         />
 
         {/* Catch-all: Send lost users to login */}
